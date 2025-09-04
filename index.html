@@ -1,0 +1,512 @@
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Frühe Neuzeit (1500–1800) – Slideshow</title>
+    <meta name="description" content="Klick-gesteuerte Vue.js Slideshow zur Epoche Frühe Neuzeit (1500–1800) mit Unterepochen, Schlüsselereignissen und Recherche-Hinweisen." />
+    <!-- Vue 3 CDN -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+    <style>
+        :root {
+            --bg: #0f172a;          /* slate-900 */
+            --panel: #111827;       /* gray-900 */
+            --card: #111827;        /* gray-900 */
+            --muted: #9ca3af;       /* gray-400 */
+            --text: #e5e7eb;        /* gray-200 */
+            --accent: #22d3ee;      /* cyan-400 */
+            --accent-2: #a78bfa;    /* violet-400 */
+            --ok: #34d399;          /* emerald-400 */
+            --warn: #f59e0b;        /* amber-500 */
+            --danger: #f87171;      /* red-400 */
+            --shadow: 0 10px 30px rgba(0,0,0,.45);
+            --radius: 18px;
+        }
+
+        html, body { height: 100%; }
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+            color: var(--text);
+            background: radial-gradient(1200px 600px at 70% -10%, rgba(34,211,238,.08), transparent 60%),
+            radial-gradient(900px 500px at -10% 30%, rgba(167,139,250,.08), transparent 60%),
+            var(--bg);
+            overflow: hidden;
+        }
+
+        .app {
+            display: grid;
+            grid-template-rows: auto 1fr auto;
+            height: 100svh;
+            gap: 14px;
+            padding: 18px;
+        }
+
+        header, footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+        }
+
+        header .title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-weight: 700;
+            letter-spacing: .2px;
+        }
+
+        header .badge {
+            font-size: 12px;
+            color: var(--bg);
+            background: linear-gradient(90deg, var(--accent), var(--accent-2));
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-weight: 700;
+        }
+
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        button.nav {
+            appearance: none;
+            border: 0;
+            border-radius: 12px;
+            padding: 10px 14px;
+            font-weight: 700;
+            color: var(--bg);
+            background: linear-gradient(90deg, var(--accent), var(--accent-2));
+            cursor: pointer;
+            box-shadow: var(--shadow);
+            transition: transform .08s ease;
+        }
+        button.nav[disabled] { opacity: .45; cursor: not-allowed; }
+        button.nav:active { transform: translateY(1px) scale(.995); }
+
+        .slide-wrap {
+            position: relative;
+            background: rgba(17,24,39,.6);
+            backdrop-filter: saturate(120%) blur(6px);
+            box-shadow: var(--shadow);
+            border-radius: var(--radius);
+            overflow: hidden;
+            height: 100%;
+            display: grid;
+        }
+
+        .slide {
+            width: 100%; height: 100%;
+            padding: clamp(18px, 4vw, 36px);
+            display: grid;
+            grid-template-rows: auto 1fr;
+            gap: 10px;
+            opacity: 0; transform: translateY(8px) scale(.99);
+            transition: opacity .35s ease, transform .35s ease;
+        }
+        .slide.active { opacity: 1; transform: translateY(0) scale(1); }
+
+        .slide h2 { font-size: clamp(22px, 3.2vw, 34px); margin: 0; }
+        .subtitle { color: var(--muted); margin-top: 2px; font-size: 14px; }
+
+        .content { overflow: auto; padding-right: 6px; }
+        .content p { line-height: 1.6; }
+        .content ul { line-height: 1.6; }
+
+        .grid { display: grid; gap: 12px; }
+        .grid.cols-2 { grid-template-columns: repeat(2, minmax(0,1fr)); }
+        .grid.cols-3 { grid-template-columns: repeat(3, minmax(0,1fr)); }
+        @media (max-width: 900px) { .grid.cols-2, .grid.cols-3 { grid-template-columns: 1fr; } }
+
+        .card {
+            border: 1px solid rgba(255,255,255,.08);
+            border-radius: 14px;
+            padding: 14px 16px;
+            background: rgba(255,255,255,.02);
+        }
+
+        .timeline {
+            position: relative;
+            padding: 20px 8px 8px;
+        }
+        .timeline .axis { height: 4px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); border-radius: 999px; }
+        .timeline .tick {
+            position: absolute; top: -6px; width: 0; height: 20px; border-left: 2px dashed rgba(255,255,255,.25);
+        }
+        .timeline .label { position: absolute; top: 24px; transform: translateX(-50%); font-size: 12px; color: var(--muted); }
+        .markers { position: relative; height: 0; }
+        .marker {
+            position: absolute; top: -7px; width: 14px; height: 14px; border-radius: 50%;
+            background: var(--ok); box-shadow: 0 6px 16px rgba(52,211,153,.4);
+            transform: translateX(-50%);
+        }
+        .marker .pop {
+            position: absolute; left: 50%; transform: translateX(-50%);
+            top: -60px; min-width: 180px; max-width: 320px;
+            background: rgba(17,24,39,.95); border: 1px solid rgba(255,255,255,.08);
+            border-radius: 12px; padding: 8px 10px; font-size: 12px; text-align: center;
+            box-shadow: var(--shadow); display: none;
+        }
+        .marker:hover .pop { display: block; }
+
+        .table { width: 100%; border-collapse: collapse; }
+        .table th, .table td { border-bottom: 1px solid rgba(255,255,255,.08); padding: 10px 8px; text-align: left; vertical-align: top; }
+        .table th { color: var(--muted); font-weight: 600; }
+
+        .dots { display: flex; gap: 8px; align-items: center; justify-content: center; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: rgba(255,255,255,.25); cursor: pointer; }
+        .dot.active { background: linear-gradient(90deg, var(--accent), var(--accent-2)); box-shadow: 0 0 0 3px rgba(255,255,255,.08); }
+
+        footer .left, footer .right { display: flex; align-items: center; gap: 10px; }
+        .progress {
+            height: 6px; width: 260px; background: rgba(255,255,255,.08); border-radius: 999px; overflow: hidden;
+        }
+        .progress > div { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent-2)); width: 0%; transition: width .25s ease; }
+
+        .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; font-size: 12px; color: var(--bg); background: var(--text); padding: 2px 6px; border-radius: 6px; }
+
+        .pill {
+            display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(255,255,255,.12); border-radius: 999px; padding: 4px 10px; font-size: 12px; color: var(--muted);
+        }
+
+        a { color: #7dd3fc; text-decoration: none; }
+        a:hover { text-decoration: underline; }
+
+    </style>
+</head>
+<body>
+<div id="app" class="app" @keydown.left.prevent="prev" @keydown.right.prevent="next" tabindex="0">
+    <header>
+        <div class="title">
+            <span class="badge">Klick-Slideshow</span>
+            <span>Frühe Neuzeit <span style="opacity:.7">(1500–1800)</span></span>
+        </div>
+        <div class="controls">
+            <button class="nav" @click="prev" :disabled="i===0" title="Zurück (←)">← Zurück</button>
+            <button class="nav" @click="next" :disabled="i===slides.length-1" title="Weiter (→)">Weiter →</button>
+            <button class="nav" @click="printDoc" title="Drucken / PDF">🖨️ Drucken</button>
+        </div>
+    </header>
+
+    <main class="slide-wrap" :aria-live="'polite'" aria-label="Slideshow – Frühe Neuzeit">
+        <section v-for="(s,idx) in slides" :key="idx" class="slide" :class="{active: idx===i}" v-show="idx===i">
+            <div>
+                <h2>{{ s.title }}</h2>
+                <div class="subtitle" v-if="s.subtitle" v-text="s.subtitle"></div>
+            </div>
+            <div class="content">
+                <!-- Standard HTML-Content -->
+                <div v-if="!s.component" v-html="s.html"></div>
+
+                <!-- Interaktive Timeline -->
+                <timeline v-else-if="s.component==='timeline'" :min-year="timelineMin" :max-year="timelineMax" :events="timelineEvents"></timeline>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <div class="left">
+            <div class="pill">Tasten: <span class="kbd">←</span> / <span class="kbd">→</span></div>
+            <div class="pill">Slide {{ i+1 }} / {{ slides.length }}</div>
+        </div>
+        <div class="dots" aria-label="Slides">
+            <span v-for="(s,idx) in slides" :key="idx" class="dot" :class="{active: idx===i}" :title="'Zu Folie '+(idx+1)+' springen'" @click="go(idx)"></span>
+        </div>
+        <div class="right">
+            <div class="progress" :aria-valuemin="0" :aria-valuemax="100" role="progressbar" :aria-valuenow="progress">
+                <div :style="{width: progress+'%'}"></div>
+            </div>
+        </div>
+    </footer>
+</div>
+
+<script>
+    const Timeline = {
+        name: 'timeline',
+        props: { minYear: Number, maxYear: Number, events: Array },
+        computed: {
+            span(){ return this.maxYear - this.minYear; },
+            ticks(){
+                // Generate 50-year ticks
+                const start = Math.ceil(this.minYear / 50) * 50;
+                const arr = [];
+                for(let y=start; y<=this.maxYear; y+=50){ arr.push(y); }
+                return arr;
+            }
+        },
+        methods: {
+            pos(year){ return ((year - this.minYear) / this.span) * 100; }
+        },
+        template: `
+        <div>
+          <div class="timeline">
+            <div class="axis"></div>
+            <div class="tick" v-for="t in ticks" :key="t" :style="{left: pos(t)+'%'}"></div>
+            <div class="label" v-for="t in ticks" :key="t+'lbl'" :style="{left: pos(t)+'%'}">{{ t }}</div>
+            <div class="markers">
+              <div class="marker" v-for="(e,idx) in events" :key="idx" :style="{left: pos(e.year)+'%'}">
+                <div class="pop">
+                  <strong>{{ e.yearLabel }}</strong><br/>
+                  {{ e.title }}<br/>
+                  <span style="color:var(--muted)">{{ e.note }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="grid cols-3" style="margin-top:16px">
+            <div v-for="(e,idx) in events" :key="'card'+idx" class="card">
+              <div style="font-weight:700">{{ e.yearLabel }} — {{ e.title }}</div>
+              <div style="opacity:.85; margin-top:6px">{{ e.note }}</div>
+            </div>
+          </div>
+        </div>
+      `
+    };
+
+    const { createApp } = Vue;
+    createApp({
+        components: { Timeline },
+        data(){
+            return {
+                i: 0,
+                slides: [
+                    {
+                        title: 'Frühe Neuzeit (1500–1800)',
+                        subtitle: 'Unsere Gruppe – klickgesteuerte Präsentation',
+                        html: `
+                <div class="grid cols-2">
+                  <div class="card">
+                    <h3>Was ist eine Epoche?</h3>
+                    <ul>
+                      <li>Größerer Zeitabschnitt mit gemeinsamen Merkmalen.</li>
+                      <li>Wird <em>rückblickend</em> durch historische Umbrüche begrenzt (Epochenwechsel).</li>
+                      <li>Dient dazu, Entwicklungen übersichtlich zu gliedern.</li>
+                    </ul>
+                  </div>
+                  <div class="card">
+                    <h3>Große Epochen (Überblick)</h3>
+                    <ul>
+                      <li>Ur-/Vorgeschichte (bis ca. 3000 v. Chr.)</li>
+                      <li>Antike (bis 476 n. Chr.)</li>
+                      <li>Mittelalter (ca. 500–1500)</li>
+                      <li>Neuzeit (ab ca. 1500) → <strong>Frühe Neuzeit 1500–1800</strong></li>
+                    </ul>
+                  </div>
+                </div>
+              `
+                    },
+                    {
+                        title: 'Auftrag & Ziel',
+                        subtitle: 'So erfüllen wir die Punkte 1–5',
+                        html: `
+                <ol>
+                  <li><strong>Epochen einteilen:</strong> Überblick & Definition (Folie 1).</li>
+                  <li><strong>Unterepochen datieren:</strong> Renaissance → Aufklärung (Folie 3–4).</li>
+                  <li><strong>Schlüsselereignisse:</strong> Tabelle & Timeline (Folie 5–6).</li>
+                  <li><strong>Zeitstrahl zusammenführen:</strong> Unser Abschnitt 1500–1800 (Folie 6–7 als Beitrag).</li>
+                  <li><strong>Recherche erklären:</strong> Vorgehen & Quellenhinweise (Folie 8).</li>
+                </ol>
+                <p class="subtitle">Navigation: mit den Buttons oder Pfeiltasten <span class="kbd">←</span>/<span class="kbd">→</span>.</p>
+              `
+                    },
+                    {
+                        title: 'Frühe Neuzeit – Überblick',
+                        subtitle: 'Zeitraum, Merkmale, Übergänge',
+                        html: `
+                <div class="grid cols-2">
+                  <div class="card">
+                    <h3>Zeitraum</h3>
+                    <p>≈ <strong>1500–1800</strong>. Beginn im Umfeld von Renaissance, Entdeckungen & Reformation; Ende mit Revolutionen (v. a. 1789) und Übergang zur Moderne.</p>
+                    <h3>Charakteristika</h3>
+                    <ul>
+                      <li>Konfessionalisierung: Reformation & Gegenreformation</li>
+                      <li>Staatsbildung & <em>Absolutismus</em></li>
+                      <li>Globalisierungsschub durch Seehandel & Kolonialismus</li>
+                      <li>Wissenschaftliche Revolution & <em>Aufklärung</em></li>
+                    </ul>
+                  </div>
+                  <div class="card">
+                    <h3>Epochengrenzen (symb.)</h3>
+                    <ul>
+                      <li><strong>1492</strong>: „Entdeckung“ Amerikas (Beginn der Neuzeit)</li>
+                      <li><strong>1517</strong>: Luthers Thesen (Start Reformation)</li>
+                      <li><strong>1789</strong>: Französische Revolution (Ende der Frühen Neuzeit)</li>
+                    </ul>
+                    <p class="subtitle">Daten sind konventionell und regional unterschiedlich, dienen aber zur Orientierung.</p>
+                  </div>
+                </div>
+              `
+                    },
+                    {
+                        title: 'Unterepochen (1500–1800)',
+                        subtitle: 'mit groben Datierungen',
+                        html: `
+                <div class="grid cols-2">
+                  <div class="card">
+                    <ul>
+                      <li><strong>Renaissance</strong> (bis ins 16. Jh. hinein): Wiederentdeckung antiker Kultur, Humanismus.</li>
+                      <li><strong>Zeitalter der Entdeckungen</strong> (15.–frühes 16. Jh.): Atlantikfahrten, Weltumsegelung.</li>
+                      <li><strong>Reformation & Religionskonflikte</strong> (1517–1648): Kirchenspaltung, Dreißigjähriger Krieg.</li>
+                    </ul>
+                  </div>
+                  <div class="card">
+                    <ul>
+                      <li><strong>Barock & Absolutismus</strong> (ca. 1600–1715): Hofkultur, Zentralstaaten.</li>
+                      <li><strong>Wissenschaft & Aufklärung</strong> (ca. 1650–1789): Naturgesetze, Vernunft, Menschenrechte.</li>
+                      <li><strong>Revolutionen</strong> (1776–1799): USA unabhängig; Frankreich 1789.</li>
+                    </ul>
+                  </div>
+                </div>
+                <p class="subtitle">Datierungen sind ungefähre Leitplanken – wichtig ist das Verständnis der Entwicklungen.</p>
+              `
+                    },
+                    {
+                        title: 'Schlüsselereignisse (Tabelle)',
+                        subtitle: 'mit Jahreszahlen & Bedeutung',
+                        html: `
+                <table class="table" role="table" aria-label="Schlüsselereignisse Frühe Neuzeit">
+                  <thead><tr><th>Jahr</th><th>Ereignis</th><th>Bedeutung</th></tr></thead>
+                  <tbody>
+                    <tr><td>ca. 1450</td><td>Gutenbergs Buchdruck</td><td>Beschleunigt Wissensverbreitung (Renaissance, Reformation).</td></tr>
+                    <tr><td>1492</td><td>Kolumbus erreicht Amerika</td><td>Beginn globaler Verflechtungen; Ende des Mittelalters.</td></tr>
+                    <tr><td>1517</td><td>Luthers 95 Thesen</td><td>Start der Reformation; Kirchenspaltung.</td></tr>
+                    <tr><td>1618–1648</td><td>Dreißigjähriger Krieg</td><td>Konfessionelle & machtpolitische Konflikte in Europa.</td></tr>
+                    <tr><td>1648</td><td>Westfälischer Frieden</td><td>Souveräne Staatenordnung; Ende der Religionskriege (Zentraleuropa).</td></tr>
+                    <tr><td>1687</td><td>Newtons <em>Principia</em></td><td>Formuliert Gravitation; Meilenstein der Wissenschaftlichen Revolution.</td></tr>
+                    <tr><td>1776</td><td>Unabhängigkeit der USA</td><td>Umsetzung aufklärerischer Ideen in Verfassungspraxis.</td></tr>
+                    <tr><td>1789</td><td>Französische Revolution</td><td>Sturz des Ancien Régime; Beginn der Moderne.</td></tr>
+                  </tbody>
+                </table>
+              `
+                    },
+                    {
+                        title: 'Unser Beitrag zum gemeinsamen Zeitstrahl',
+                        subtitle: 'interaktive Mini-Timeline 1450–1800 (Fokus 1500–1800)',
+                        component: 'timeline'
+                    },
+                    {
+                        title: 'Kommentar zu unserem Zeitbereich',
+                        subtitle: 'Was prägt 1500–1800 besonders?',
+                        html: `
+                <div class="grid cols-2">
+                  <div class="card">
+                    <h3>Strukturen</h3>
+                    <ul>
+                      <li>Vom Feudalismus zum Zentralstaat (Absolutismus).</li>
+                      <li>Konfessionelle Vielfalt prägt Politik und Alltag.</li>
+                      <li>Erste Globalisierung: Handel, Kolonialismus, Kulturkontakte.</li>
+                    </ul>
+                  </div>
+                  <div class="card">
+                    <h3>Ideen & Wissen</h3>
+                    <ul>
+                      <li>Empirie & Mathematik verändern Weltbild (Kopernikus → Newton).</li>
+                      <li>Aufklärung: Vernunft, Rechte, Gewaltenteilung.</li>
+                      <li>Von Ideen zu Umstürzen: 1776 & 1789 leiten Moderne ein.</li>
+                    </ul>
+                  </div>
+                </div>
+              `
+                    },
+                    {
+                        title: 'Wie wir recherchiert haben (Punkt 5)',
+                        subtitle: 'Vorgehen & Quellenarten',
+                        html: `
+                <div class="grid cols-2">
+                  <div class="card">
+                    <h3>Vorgehen</h3>
+                    <ol>
+                      <li>Begriffe klären & Suchbegriffe sammeln (z. B. „Frühe Neuzeit Unterepochen“).</li>
+                      <li>Überblicksartikel lesen (Lehr-/Lexikonseiten, Wikipedia) & Notizen machen.</li>
+                      <li>Daten gegengeprüft (mehrere Quellen für Jahreszahlen/Ereignisse).</li>
+                      <li>Inhalte in <em>eigene Worte</em> gefasst & für Präsentation gegliedert.</li>
+                    </ol>
+                  </div>
+                  <div class="card">
+                    <h3>Quellenarten (Beispiele)</h3>
+                    <ul>
+                      <li>Lehr-/Lernportale (z. B. Landesbildungsserver, Studienportale).</li>
+                      <li>Nachschlagewerke (z. B. Enzyklopädie/Wikipedia mit Quellencheck).</li>
+                      <li>Einführende Fachliteratur (z. B. Überblickswerke zur Frühen Neuzeit).</li>
+                    </ul>
+                    <p class="subtitle">Im Vortrag nennen wir beispielhaft 2–3 konkrete Seiten & Literaturtitel.</p>
+                  </div>
+                </div>
+              `
+                    },
+                    {
+                        title: 'Quellen (konkret)',
+                        subtitle: 'Webseiten, die wir verwendet haben',
+                        html: `
+                <div class="grid cols-2">
+                  <div class="card">
+                    <h3>Artikel / Seiten</h3>
+                    <ul>
+                      <li><a href="https://de.wikipedia.org/wiki/Neuzeit" target="_blank" rel="noopener">Wikipedia (de): Neuzeit</a></li>
+                      <li><a href="https://de.wikipedia.org/wiki/Fr%C3%BChe_Neuzeit" target="_blank" rel="noopener">Wikipedia (de): Frühe Neuzeit</a></li>
+                      <li><a href="https://www.segu-geschichte.de/" target="_blank" rel="noopener">segu-geschichte</a> (Module zur Neuzeit)</li>
+                      <li><a href="https://www.studysmarter.de/schule/geschichte/" target="_blank" rel="noopener">StudySmarter – Geschichte</a> (Neuzeit & Frühe Neuzeit)</li>
+                      <li><a href="https://www.sciodoo.de/geschichte/" target="_blank" rel="noopener">Sciodoo – Geschichte</a> (Epochen, Neuzeit)</li>
+                      <li><a href="https://www.geschichte-abitur.de/" target="_blank" rel="noopener">Geschichte-Abitur.de</a> (Überblicksartikel)</li>
+                    </ul>
+                  </div>
+                  <div class="card">
+                    <h3>Hinweis</h3>
+                    <ul>
+                      <li>Mehrere Seiten pro Portal genutzt: Wikipedia (2), StudySmarter (2), Sciodoo (3).</li>
+                      <li>Abrufdatum: 4. Sept. 2025.</li>
+                      <li>Alle Inhalte in eigenen Worten zusammengefasst.</li>
+                    </ul>
+                  </div>
+                </div>
+              `
+                    },
+                    {
+                        title: 'Danke! Fragen?',
+                        subtitle: 'Optional: Zurückspringen & Themen vertiefen',
+                        html: `
+                <p>Mit <span class="kbd">←</span>/<span class="kbd">→</span> oder über die Punkte unten wechseln. <br>Nutzen Sie die Timeline (Folie 6), um die wichtigsten Daten zu wiederholen.</p>
+              `
+                    }
+                ],
+
+                // Timeline data (für Folie 6)
+                timelineMin: 1450,
+                timelineMax: 1800,
+                timelineEvents: [
+                    { year: 1450, yearLabel: 'ca. 1450', title: 'Buchdruck (Gutenberg)', note: 'Wissensrevolution' },
+                    { year: 1492, yearLabel: '1492', title: 'Kolumbus in Amerika', note: 'Beginn der Neuzeit' },
+                    { year: 1517, yearLabel: '1517', title: 'Reformation (Luther)', note: 'Kirchenspaltung' },
+                    { year: 1648, yearLabel: '1648', title: 'Westfälischer Frieden', note: 'Staatensystem' },
+                    { year: 1687, yearLabel: '1687', title: 'Newtons Principia', note: 'Gravitation' },
+                    { year: 1776, yearLabel: '1776', title: 'USA unabhängig', note: 'Verfassung & Rechte' },
+                    { year: 1789, yearLabel: '1789', title: 'Französische Revolution', note: 'Moderne beginnt' }
+                ]
+            };
+        },
+        computed: {
+            progress(){ return Math.round((this.i)/(this.slides.length-1)*100); }
+        },
+        methods: {
+            next(){ if(this.i < this.slides.length-1) this.i++; this._focus(); this._syncHash(); },
+            prev(){ if(this.i > 0) this.i--; this._focus(); this._syncHash(); },
+            go(idx){ this.i = idx; this._focus(); this._syncHash(); },
+            printDoc(){ window.print(); },
+            _focus(){ this.$el && this.$el.focus && this.$el.focus(); },
+            _syncHash(){ try { location.hash = `#slide-${this.i+1}`; } catch(e){} }
+        },
+        mounted(){
+            // Init from hash (e.g. #slide-3)
+            const m = (location.hash||'').match(/slide-(\d+)/);
+            if(m){ const n = parseInt(m[1],10)-1; if(!isNaN(n) && n>=0 && n<this.slides.length) this.i = n; }
+            this._focus();
+            // Keyboard listeners already on root via @keydown; ensure focus on click anywhere
+            window.addEventListener('click', ()=> this._focus(), {passive:true});
+        }
+    }).mount('#app');
+</script>
+</body>
+</html>
